@@ -15,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless it sits under a Suspense boundary. We split the form into
@@ -77,18 +78,21 @@ function LoginPageInner() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+        <CardHeader className="flex flex-col items-center justify-center text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-[#25D366]/15 text-[#25D366]">
             {inviteToken ? (
               <UsersRound className="h-6 w-6 text-primary" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <WhatsAppIcon className="h-7 w-7" />
             )}
           </div>
-          <CardTitle className="text-xl text-foreground">
+          <h1 className="w-full text-center text-xl font-bold tracking-tight text-foreground">
+            WhatsApp CRM
+          </h1>
+          <CardTitle className="w-full text-center text-base font-semibold text-foreground">
             {inviteToken ? t('titleAccept') : t('titleWelcome')}
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="w-full text-center text-muted-foreground">
             {inviteToken
               ? t('descAccept')
               : t('descWelcome')}

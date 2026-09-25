@@ -13,7 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle, ArrowLeft } from "lucide-react";
+import { CheckCircle, ArrowLeft } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -45,11 +46,11 @@ export default function ForgotPasswordPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md border-border bg-card">
-          <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <CardHeader className="flex flex-col items-center justify-center text-center">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <CheckCircle className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-xl text-foreground">
+            <CardTitle className="w-full text-center text-xl text-foreground">
               Check your email
             </CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -76,12 +77,12 @@ export default function ForgotPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <MessageSquare className="h-6 w-6 text-primary" />
+        <CardHeader className="flex flex-col items-center justify-center text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-[#25D366]/15 text-[#25D366]">
+            <WhatsAppIcon className="h-7 w-7" />
           </div>
-          <CardTitle className="text-xl text-foreground">Reset password</CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardTitle className="w-full text-center text-xl text-foreground">Reset password</CardTitle>
+          <CardDescription className="w-full text-center text-muted-foreground">
             Enter your email and we&apos;ll send you a reset link
           </CardDescription>
         </CardHeader>
