@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { CheckCircle, UsersRound } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { Footer } from "@/components/layout/footer";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -92,7 +93,7 @@ function SignupPageInner() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
         <Card className="w-full max-w-md border-border bg-card">
           <CardHeader className="items-center text-center">
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -124,12 +125,13 @@ function SignupPageInner() {
             </Link>
           </CardContent>
         </Card>
+        <Footer className="mt-6" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="flex flex-col items-center justify-center text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-[#25D366]/15 text-[#25D366]">
@@ -240,6 +242,7 @@ function SignupPageInner() {
           </p>
         </CardContent>
       </Card>
+      <Footer className="mt-6" />
     </div>
   );
 }

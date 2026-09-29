@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { UsersRound } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { Footer } from "@/components/layout/footer";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless it sits under a Suspense boundary. We split the form into
@@ -76,7 +77,7 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="flex flex-col items-center justify-center text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-[#25D366]/15 text-[#25D366]">
@@ -168,6 +169,7 @@ function LoginPageInner() {
           </p>
         </CardContent>
       </Card>
+      <Footer className="mt-6" />
     </div>
   );
 }

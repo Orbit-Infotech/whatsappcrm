@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { Footer } from "@/components/layout/footer";
 import type { AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
@@ -395,6 +396,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Footer className="mt-3 pt-2.5 border-t border-border/50 text-[11px]" />
         </div>
       </aside>
     </>
