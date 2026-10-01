@@ -83,7 +83,7 @@ function collectVariableSlots(template: MessageTemplate): {
     template.header_type === "video" ||
     template.header_type === "document";
   const needsMedia = isMedia;
-  const mediaType = isMedia ? template.header_type : null;
+  const mediaType = isMedia ? (template.header_type ?? null) : null;
   const urlButtonSlots: UrlButtonSlot[] = [];
   (template.buttons ?? []).forEach((b, i) => {
     if (b.type === "URL" && extractVariableIndices(b.url).length > 0) {
