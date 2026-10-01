@@ -141,4 +141,21 @@ describe('ensureImageHeaderHandle', () => {
     const init = (fetchSpy.mock.calls[0] as unknown[])[1] as RequestInit;
     expect(init).toMatchObject({ redirect: 'manual' });
   });
+
+  it('derives + sets header_handle for a valid document URL', async () => {
+    vi.stubEnv('META_APP_ID', 'app-1');
+    vi.stubGlobal('fetch', vi.fn(async () => imgResponse('application/pdf', 5000)));
+    const p = payload({ header_type: 'document', header_media_url: 'https://x.test/file.pdf' });
+    await ensureImageHeaderHandle(p, 'tok');
+    expect(uploadResumableMedia).toHaveBeenCalledOnce();
+    expect(p.header_handle).toBe('HANDLE123');
+  });
+
+  it('rejects an invalid document content type', async () => {
+    vi.stubEnv('META_APP_ID', 'app-1');
+    vi.stubGlobal('fetch', vi.fn(async () => imgResponse('text/html')));
+    const p = payload({ header_type: 'document', header_media_url: 'https://x.test/file.pdf' });
+    await expect(ensureImageHeaderHandle(p, 'tok')).rejects.toThrow(/PDF/);
+  });
 });
+

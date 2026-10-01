@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, CustomField, MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Eye, ImageIcon, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  Eye,
+  FileText,
+  ImageIcon,
+  Loader2,
+  Upload,
+  Video,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import {
+  uploadAccountMedia,
+  MEDIA_MAX_BYTES_BY_KIND,
+} from '@/lib/storage/upload-media';
 
 type VariableType = 'static' | 'field' | 'custom_field';
 
@@ -84,6 +99,8 @@ export function Step3Personalize({
     Map<string, string>
   >(new Map());
   const [loadingPreview, setLoadingPreview] = useState(true);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load user's custom fields + a representative contact for the
   // live preview. Fall back to sample data if no contacts exist yet.
@@ -141,6 +158,86 @@ export function Step3Personalize({
   const mediaHeaderType = isMediaHeaderType(template.header_type)
     ? template.header_type
     : null;
+
+  const mediaConfig = useMemo(() => {
+    switch (mediaHeaderType) {
+      case 'document':
+        return {
+          title: 'Header Document',
+          icon: FileText,
+          accept: 'application/pdf',
+          uploadLabel: 'Upload Document (PDF)',
+          urlLabel: 'Document URL (PDF)',
+          desc: 'Upload a PDF document (≤16 MB) or paste a publicly accessible URL.',
+          urlPlaceholder: 'https://example.com/document.pdf',
+        };
+      case 'video':
+        return {
+          title: 'Header Video',
+          icon: Video,
+          accept: 'video/mp4,video/3gpp',
+          uploadLabel: 'Upload Video',
+          urlLabel: 'Video URL',
+          desc: 'Upload a video (MP4 or 3GP, ≤16 MB) or paste a publicly accessible URL.',
+          urlPlaceholder: 'https://example.com/video.mp4',
+        };
+      case 'image':
+      default:
+        return {
+          title: 'Header Image',
+          icon: ImageIcon,
+          accept: 'image/jpeg,image/png',
+          uploadLabel: 'Upload Image',
+          urlLabel: 'Image URL',
+          desc: 'Upload an image (JPEG or PNG, ≤5 MB) or paste a publicly accessible URL.',
+          urlPlaceholder: 'https://example.com/image.jpg',
+        };
+    }
+  }, [mediaHeaderType]);
+
+  async function handleMediaUpload(file: File) {
+    if (!mediaHeaderType) return;
+    const kind = mediaHeaderType;
+    const maxBytes = MEDIA_MAX_BYTES_BY_KIND[kind];
+
+    if (kind === 'document') {
+      const isPdf =
+        file.type === 'application/pdf' ||
+        file.name.toLowerCase().endsWith('.pdf');
+      if (!isPdf) {
+        toast.error('Only PDF documents are supported for template document headers.');
+        return;
+      }
+    } else if (kind === 'image') {
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        toast.error('Only JPEG and PNG images are supported.');
+        return;
+      }
+    } else if (kind === 'video') {
+      if (!['video/mp4', 'video/3gpp'].includes(file.type)) {
+        toast.error('Only MP4 and 3GPP videos are supported.');
+        return;
+      }
+    }
+
+    if (file.size > maxBytes) {
+      toast.error(
+        `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — max limit is ${(maxBytes / 1024 / 1024).toFixed(0)} MB.`,
+      );
+      return;
+    }
+
+    setUploadingMedia(true);
+    try {
+      const { publicUrl } = await uploadAccountMedia('chat-media', file);
+      onHeaderMediaUrlChange(publicUrl);
+      toast.success(`${kind.toUpperCase()} uploaded successfully`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Media upload failed');
+    } finally {
+      setUploadingMedia(false);
+    }
+  }
 
   // Seed the field with the template's stored sample URL the first time
   // we land on a media-header template, so the common "reuse the
@@ -244,26 +341,59 @@ export function Step3Personalize({
 
       {mediaHeaderType && (
         <div className="rounded-xl border border-border bg-card/50 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <ImageIcon className="h-4 w-4 text-primary" />
-            <p className="text-sm font-medium text-foreground">{t('personalize.headerImage')}</p>
-            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium uppercase text-primary">
-              {mediaHeaderType}
-            </span>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <mediaConfig.icon className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium text-foreground">{mediaConfig.title}</p>
+              <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium uppercase text-primary">
+                {mediaHeaderType}
+              </span>
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={mediaConfig.accept}
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleMediaUpload(f);
+                  e.target.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadingMedia}
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-2"
+              >
+                {uploadingMedia ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                {mediaConfig.uploadLabel}
+              </Button>
+            </div>
           </div>
+
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            {t('personalize.imageUrl')}
+            {mediaConfig.urlLabel}
           </label>
           <Input
             type="url"
             value={headerMediaUrl}
             onChange={(e) => onHeaderMediaUrlChange(e.target.value)}
-            placeholder={t('personalize.imageUrlPlaceholder')}
+            placeholder={mediaConfig.urlPlaceholder}
             className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {t('personalize.headerImageDesc')}
+            {mediaConfig.desc}
           </p>
+
+          {/* Media previews */}
           {mediaHeaderType === 'image' &&
             headerMediaError === null &&
             headerMediaUrl.trim() && (
@@ -274,10 +404,43 @@ export function Step3Personalize({
                 className="mt-3 max-h-40 rounded-lg border border-border object-contain"
               />
             )}
+
+          {mediaHeaderType === 'video' &&
+            headerMediaError === null &&
+            headerMediaUrl.trim() && (
+              <video
+                src={headerMediaUrl.trim()}
+                controls
+                className="mt-3 max-h-44 rounded-lg border border-border"
+              />
+            )}
+
+          {mediaHeaderType === 'document' &&
+            headerMediaError === null &&
+            headerMediaUrl.trim() && (
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-muted/60 p-2.5">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <FileText className="h-5 w-5 shrink-0 text-red-500" />
+                  <span className="truncate text-xs font-medium text-foreground">
+                    {headerMediaUrl.split('/').pop()?.split('?')[0] || 'Document.pdf'}
+                  </span>
+                </div>
+                <a
+                  href={headerMediaUrl.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0 ml-2"
+                >
+                  <span>View</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+
           {headerMediaError && (
             <p className="mt-1.5 text-xs text-amber-300">
               {headerMediaError === 'missing'
-                ? 'A media URL is required to send this template.'
+                ? `A ${mediaHeaderType} URL or uploaded file is required to send this template.`
                 : 'Enter a valid http(s) URL.'}
             </p>
           )}

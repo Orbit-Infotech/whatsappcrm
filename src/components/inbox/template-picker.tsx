@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageTemplate } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,26 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   ChevronRight,
+  ExternalLink,
+  FileText,
+  ImageIcon,
   LayoutTemplate,
   Loader2,
+  Upload,
+  Video,
 } from "lucide-react";
 import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import {
+  uploadAccountMedia,
+  MEDIA_MAX_BYTES_BY_KIND,
+} from "@/lib/storage/upload-media";
 
 export interface TemplateSendValues {
   body: string[];
   headerText?: string;
+  headerMediaUrl?: string;
   buttonParams?: Record<number, string>;
 }
 
@@ -58,6 +69,8 @@ interface UrlButtonSlot {
 function collectVariableSlots(template: MessageTemplate): {
   bodyVars: number[];
   headerVarCount: number;
+  needsMedia: boolean;
+  mediaType: string | null;
   urlButtonSlots: UrlButtonSlot[];
 } {
   const bodyVars = extractVariableIndices(template.body_text);
@@ -65,13 +78,19 @@ function collectVariableSlots(template: MessageTemplate): {
     template.header_type === "text" && template.header_content
       ? extractVariableIndices(template.header_content).length
       : 0;
+  const isMedia =
+    template.header_type === "image" ||
+    template.header_type === "video" ||
+    template.header_type === "document";
+  const needsMedia = isMedia;
+  const mediaType = isMedia ? template.header_type : null;
   const urlButtonSlots: UrlButtonSlot[] = [];
   (template.buttons ?? []).forEach((b, i) => {
     if (b.type === "URL" && extractVariableIndices(b.url).length > 0) {
       urlButtonSlots.push({ index: i, text: b.text, url: b.url });
     }
   });
-  return { bodyVars, headerVarCount, urlButtonSlots };
+  return { bodyVars, headerVarCount, needsMedia, mediaType, urlButtonSlots };
 }
 
 export function TemplatePicker({
@@ -86,7 +105,10 @@ export function TemplatePicker({
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
   const [params, setParams] = useState<string[]>([]);
   const [headerText, setHeaderText] = useState<string>("");
+  const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [buttonParams, setButtonParams] = useState<Record<number, string>>({});
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +158,7 @@ export function TemplatePicker({
     setSelected(null);
     setParams([]);
     setHeaderText("");
+    setHeaderMediaUrl("");
     setButtonParams({});
   }
 
@@ -149,6 +172,7 @@ export function TemplatePicker({
     const noInputsNeeded =
       slots.bodyVars.length === 0 &&
       slots.headerVarCount === 0 &&
+      !slots.needsMedia &&
       slots.urlButtonSlots.length === 0;
     if (noInputsNeeded) {
       onSelect(template, { body: [] });
@@ -158,13 +182,59 @@ export function TemplatePicker({
     setSelected(template);
     setParams(new Array(slots.bodyVars.length).fill(""));
     setHeaderText("");
+    setHeaderMediaUrl(template.header_media_url ?? "");
     setButtonParams({});
+  }
+
+  async function handleMediaUpload(file: File) {
+    if (!slots?.mediaType) return;
+    const kind = slots.mediaType as 'image' | 'video' | 'document';
+    const maxBytes = MEDIA_MAX_BYTES_BY_KIND[kind];
+
+    if (kind === 'document') {
+      const isPdf =
+        file.type === 'application/pdf' ||
+        file.name.toLowerCase().endsWith('.pdf');
+      if (!isPdf) {
+        toast.error('Only PDF documents are supported for document headers.');
+        return;
+      }
+    } else if (kind === 'image') {
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        toast.error('Only JPEG and PNG images are supported.');
+        return;
+      }
+    } else if (kind === 'video') {
+      if (!['video/mp4', 'video/3gpp'].includes(file.type)) {
+        toast.error('Only MP4 and 3GPP videos are supported.');
+        return;
+      }
+    }
+
+    if (file.size > maxBytes) {
+      toast.error(
+        `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — max limit is ${(maxBytes / 1024 / 1024).toFixed(0)} MB.`,
+      );
+      return;
+    }
+
+    setUploadingMedia(true);
+    try {
+      const { publicUrl } = await uploadAccountMedia('chat-media', file);
+      setHeaderMediaUrl(publicUrl);
+      toast.success(`${kind.toUpperCase()} uploaded successfully`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Media upload failed');
+    } finally {
+      setUploadingMedia(false);
+    }
   }
 
   function confirm() {
     if (!selected) return;
     const values: TemplateSendValues = { body: params };
     if (headerText.trim()) values.headerText = headerText.trim();
+    if (headerMediaUrl.trim()) values.headerMediaUrl = headerMediaUrl.trim();
     if (Object.keys(buttonParams).length > 0) {
       values.buttonParams = Object.fromEntries(
         Object.entries(buttonParams).map(([k, v]) => [Number(k), v.trim()]),
@@ -183,6 +253,7 @@ export function TemplatePicker({
     !!slots &&
     slots.bodyVars.every((_, i) => (params[i] ?? "").trim().length > 0) &&
     (slots.headerVarCount === 0 || headerText.trim().length > 0) &&
+    (!slots.needsMedia || headerMediaUrl.trim().length > 0) &&
     slots.urlButtonSlots.every(
       (s) => (buttonParams[s.index] ?? "").trim().length > 0,
     );
@@ -272,6 +343,94 @@ export function TemplatePicker({
                   placeholder={t("headerValuePlaceholder")}
                   className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
                 />
+              </div>
+            )}
+            {slots?.needsMedia && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    {slots.mediaType === 'document' ? (
+                      <FileText className="h-4 w-4 text-primary" />
+                    ) : slots.mediaType === 'video' ? (
+                      <Video className="h-4 w-4 text-primary" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                    )}
+                    <Label className="text-xs font-medium text-popover-foreground capitalize">
+                      {`Header ${slots.mediaType}`}
+                    </Label>
+                  </div>
+                  <div>
+                    <input
+                      ref={mediaFileInputRef}
+                      type="file"
+                      accept={
+                        slots.mediaType === 'document'
+                          ? 'application/pdf'
+                          : slots.mediaType === 'video'
+                            ? 'video/mp4,video/3gpp'
+                            : 'image/jpeg,image/png'
+                      }
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleMediaUpload(f);
+                        e.target.value = '';
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingMedia}
+                      onClick={() => mediaFileInputRef.current?.click()}
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      {uploadingMedia ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Upload className="h-3 w-3" />
+                      )}
+                      {`Upload ${slots.mediaType === 'document' ? 'PDF' : slots.mediaType === 'video' ? 'Video' : 'Image'}`}
+                    </Button>
+                  </div>
+                </div>
+                <Input
+                  value={headerMediaUrl}
+                  onChange={(e) => setHeaderMediaUrl(e.target.value)}
+                  placeholder={
+                    slots.mediaType === 'document'
+                      ? 'https://…/file.pdf'
+                      : slots.mediaType === 'video'
+                        ? 'https://…/video.mp4'
+                        : 'https://…/image.jpg'
+                  }
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground text-xs"
+                />
+                {headerMediaUrl.trim() && slots.mediaType === 'document' && (
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-background/50 rounded px-2 py-1">
+                    <span className="truncate max-w-[280px]">
+                      {headerMediaUrl.split('/').pop()?.split('?')[0] || 'Document.pdf'}
+                    </span>
+                    <a
+                      href={headerMediaUrl.trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1 ml-2"
+                    >
+                      <span>View</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+                {headerMediaUrl.trim() && slots.mediaType === 'image' && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={headerMediaUrl.trim()}
+                    alt="Header preview"
+                    className="max-h-24 rounded border border-border object-contain"
+                  />
+                )}
               </div>
             )}
             {slots?.bodyVars.map((v, i) => (

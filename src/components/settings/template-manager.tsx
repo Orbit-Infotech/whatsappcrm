@@ -12,6 +12,8 @@ import {
   Pencil,
   RotateCcw,
   Upload,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -458,17 +460,38 @@ export function TemplateManager() {
   const headerNeedsMedia =
     form.header_format !== 'none' && form.header_format !== 'text';
 
-  async function handleHeaderImageFile(file: File) {
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      toast.error(t('toastInvalidImage'));
-      return;
+  async function handleHeaderMediaFile(file: File) {
+    const format = form.header_format;
+    if (format !== 'image' && format !== 'video' && format !== 'document') return;
+
+    if (format === 'document') {
+      const isPdf =
+        file.type === 'application/pdf' ||
+        file.name.toLowerCase().endsWith('.pdf');
+      if (!isPdf) {
+        toast.error('Only PDF documents are supported for document headers.');
+        return;
+      }
+    } else if (format === 'image') {
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        toast.error(t('toastInvalidImage'));
+        return;
+      }
+    } else if (format === 'video') {
+      if (!['video/mp4', 'video/3gpp'].includes(file.type)) {
+        toast.error('Only MP4 and 3GPP videos are supported.');
+        return;
+      }
     }
-    if (file.size > MEDIA_MAX_BYTES_BY_KIND.image) {
+
+    const maxBytes = MEDIA_MAX_BYTES_BY_KIND[format];
+    if (file.size > maxBytes) {
       toast.error(
-        t('toastImageTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
+        `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — max limit is ${(maxBytes / 1024 / 1024).toFixed(0)} MB.`,
       );
       return;
     }
+
     setUploadingHeader(true);
     try {
       const { publicUrl } = await uploadAccountMedia('chat-media', file);
@@ -801,38 +824,50 @@ export function TemplateManager() {
 
               {headerNeedsMedia && (
                 <div className="space-y-2 mt-2">
-                  {form.header_format === 'image' && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={headerFileRef}
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void handleHeaderImageFile(f);
-                          e.target.value = '';
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={uploadingHeader}
-                        onClick={() => headerFileRef.current?.click()}
-                      >
-                        {uploadingHeader ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Upload className="h-3.5 w-3.5" />
-                        )}
-                        {t('uploadImage')}
-                      </Button>
-                      <span className="text-[11px] text-muted-foreground">
-                        {t('uploadHint')}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={headerFileRef}
+                      type="file"
+                      accept={
+                        form.header_format === 'document'
+                          ? 'application/pdf'
+                          : form.header_format === 'video'
+                            ? 'video/mp4,video/3gpp'
+                            : 'image/jpeg,image/png'
+                      }
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleHeaderMediaFile(f);
+                        e.target.value = '';
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingHeader}
+                      onClick={() => headerFileRef.current?.click()}
+                    >
+                      {uploadingHeader ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      {form.header_format === 'document'
+                        ? 'Upload Document (PDF)'
+                        : form.header_format === 'video'
+                          ? 'Upload Video'
+                          : t('uploadImage')}
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground">
+                      {form.header_format === 'document'
+                        ? 'PDF, ≤16 MB'
+                        : form.header_format === 'video'
+                          ? 'MP4 or 3GP, ≤16 MB'
+                          : t('uploadHint')}
+                    </span>
+                  </div>
                   <Input
                     placeholder={t('mediaUrlPlaceholder', { format: form.header_format })}
                     value={form.header_media_url}
@@ -848,6 +883,32 @@ export function TemplateManager() {
                       alt="Header sample"
                       className="max-h-28 rounded-md border border-border object-contain"
                     />
+                  )}
+                  {form.header_format === 'video' && form.header_media_url && (
+                    <video
+                      src={form.header_media_url}
+                      controls
+                      className="max-h-36 rounded-md border border-border"
+                    />
+                  )}
+                  {form.header_format === 'document' && form.header_media_url && (
+                    <div className="flex items-center justify-between rounded-md border border-border bg-muted/60 p-2 text-xs">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                        <span className="truncate font-medium">
+                          {form.header_media_url.split('/').pop()?.split('?')[0] || 'Document.pdf'}
+                        </span>
+                      </div>
+                      <a
+                        href={form.header_media_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline ml-2 shrink-0 flex items-center gap-1"
+                      >
+                        <span>View</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
                   )}
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
                     {form.header_format === 'image'
