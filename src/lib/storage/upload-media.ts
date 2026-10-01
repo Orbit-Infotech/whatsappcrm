@@ -150,3 +150,82 @@ export async function deleteAccountMedia(
   const { error } = await supabase.storage.from(bucket).remove([path]);
   if (error) throw new Error(error.message);
 }
+
+export interface AccountMediaItem {
+  id: string;
+  name: string;
+  rawName: string;
+  path: string;
+  publicUrl: string;
+  size: number;
+  createdAt: string;
+  ext: string;
+}
+
+/**
+ * List previously uploaded media for the authenticated user's account.
+ * Supports filtering by file extensions (e.g. ['pdf'] or ['jpg', 'png']).
+ */
+export async function listAccountMedia(
+  bucket = "chat-media",
+  filterExts?: string[],
+): Promise<AccountMediaItem[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
+  if (userErr || !user) return [];
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("account_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (profileErr || !profile?.account_id) return [];
+
+  const folder = `account-${profile.account_id}`;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .list(folder, {
+      limit: 100,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+
+  if (error || !data) return [];
+
+  const normalizedExts = filterExts?.map((e) =>
+    e.toLowerCase().replace(/^\./, ""),
+  );
+
+  return data
+    .filter((item) => item.name && !item.name.startsWith(".") && item.id)
+    .filter((item) => {
+      if (!normalizedExts || normalizedExts.length === 0) return true;
+      const ext = item.name.split(".").pop()?.toLowerCase();
+      return ext ? normalizedExts.includes(ext) : false;
+    })
+    .map((item) => {
+      const fullPath = `${folder}/${item.name}`;
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(bucket).getPublicUrl(fullPath);
+
+      // Clean display name by stripping the timestamp prefix (e.g. 1700000000000-file.pdf -> file.pdf)
+      const cleanName = item.name.replace(/^\d+-/, "");
+      const ext = item.name.split(".").pop()?.toLowerCase() || "";
+
+      return {
+        id: item.id || fullPath,
+        name: cleanName,
+        rawName: item.name,
+        path: fullPath,
+        publicUrl,
+        size: item.metadata?.size ?? 0,
+        createdAt: item.created_at ?? "",
+        ext,
+      };
+    });
+}
+

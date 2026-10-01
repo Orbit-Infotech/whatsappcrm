@@ -25,6 +25,7 @@ import {
   Loader2,
   Upload,
   Video,
+  FolderOpen,
 } from "lucide-react";
 import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
 import { useTranslations } from "next-intl";
@@ -33,6 +34,7 @@ import {
   uploadAccountMedia,
   MEDIA_MAX_BYTES_BY_KIND,
 } from "@/lib/storage/upload-media";
+import { MediaLibraryDialog } from "@/components/media/media-library-dialog";
 
 export interface TemplateSendValues {
   body: string[];
@@ -108,6 +110,7 @@ export function TemplatePicker({
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [buttonParams, setButtonParams] = useState<Record<number, string>>({});
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -360,7 +363,7 @@ export function TemplatePicker({
                       {`Header ${slots.mediaType}`}
                     </Label>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-1.5">
                     <input
                       ref={mediaFileInputRef}
                       type="file"
@@ -378,6 +381,16 @@ export function TemplatePicker({
                         e.target.value = '';
                       }}
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLibraryOpen(true)}
+                      className="h-7 text-xs gap-1"
+                    >
+                      <FolderOpen className="h-3 w-3 text-primary" />
+                      Library
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -502,6 +515,25 @@ export function TemplatePicker({
           )}
         </DialogFooter>
       </DialogContent>
+
+      {slots?.needsMedia && (
+        <MediaLibraryDialog
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          mediaType={
+            slots.mediaType === 'image' ||
+            slots.mediaType === 'video' ||
+            slots.mediaType === 'document'
+              ? slots.mediaType
+              : 'all'
+          }
+          selectedUrl={headerMediaUrl}
+          onSelect={(item) => {
+            setHeaderMediaUrl(item.publicUrl);
+            toast.success(`Selected "${item.name}" from library`);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  FolderOpen,
   ImageIcon,
   Loader2,
   Upload,
@@ -29,6 +30,7 @@ import {
   uploadAccountMedia,
   MEDIA_MAX_BYTES_BY_KIND,
 } from '@/lib/storage/upload-media';
+import { MediaLibraryDialog } from '@/components/media/media-library-dialog';
 
 type VariableType = 'static' | 'field' | 'custom_field';
 
@@ -100,6 +102,7 @@ export function Step3Personalize({
   >(new Map());
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load user's custom fields + a representative contact for the
@@ -349,7 +352,7 @@ export function Step3Personalize({
                 {mediaHeaderType}
               </span>
             </div>
-            <div>
+            <div className="flex items-center gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -361,6 +364,16 @@ export function Step3Personalize({
                   e.target.value = '';
                 }}
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setLibraryOpen(true)}
+                className="gap-1.5"
+              >
+                <FolderOpen className="h-3.5 w-3.5 text-primary" />
+                Choose from Library
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -445,6 +458,19 @@ export function Step3Personalize({
             </p>
           )}
         </div>
+      )}
+
+      {mediaHeaderType && (
+        <MediaLibraryDialog
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          mediaType={mediaHeaderType}
+          selectedUrl={headerMediaUrl}
+          onSelect={(item) => {
+            onHeaderMediaUrlChange(item.publicUrl);
+            toast.success(`Selected "${item.name}" from library`);
+          }}
+        />
       )}
 
       {placeholders.length === 0 && !mediaHeaderType ? (

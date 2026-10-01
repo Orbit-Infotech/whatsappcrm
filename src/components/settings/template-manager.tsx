@@ -14,7 +14,9 @@ import {
   Upload,
   FileText,
   ExternalLink,
+  FolderOpen,
 } from 'lucide-react';
+import { MediaLibraryDialog } from '@/components/media/media-library-dialog';
 import { createClient } from '@/lib/supabase/client';
 import {
   uploadAccountMedia,
@@ -151,6 +153,7 @@ export function TemplateManager() {
   // chat-media bucket and stores the public URL in header_media_url; the
   // submit route turns that into a Meta Resumable-Upload handle.
   const [uploadingHeader, setUploadingHeader] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const headerFileRef = useRef<HTMLInputElement>(null);
 
   // Body variable indices — `[1, 2, 3]` for "{{1}} {{2}} {{3}}". We
@@ -846,6 +849,16 @@ export function TemplateManager() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={() => setLibraryOpen(true)}
+                      className="gap-1.5"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5 text-primary" />
+                      Choose from Library
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       disabled={uploadingHeader}
                       onClick={() => headerFileRef.current?.click()}
                     >
@@ -1186,6 +1199,25 @@ export function TemplateManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {headerNeedsMedia && (
+        <MediaLibraryDialog
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          mediaType={
+            form.header_format === 'image' ||
+            form.header_format === 'video' ||
+            form.header_format === 'document'
+              ? form.header_format
+              : 'all'
+          }
+          selectedUrl={form.header_media_url}
+          onSelect={(item) => {
+            setForm((f) => ({ ...f, header_media_url: item.publicUrl }));
+            toast.success(`Selected "${item.name}" from library`);
+          }}
+        />
+      )}
     </section>
   );
 }
